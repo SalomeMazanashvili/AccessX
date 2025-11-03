@@ -5,24 +5,36 @@ import Footer from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { staticWorks, type StaticWork } from "@/data/staticContent";
 
-interface Work {
-  id: string;
-  title: string;
-  thumbnail_image: string | null;
-  category: string;
-  description: string;
-  case_study_body: string;
-  external_link: string | null;
-  tags: string[] | null;
-}
+type Work = StaticWork;
 
 const WorkDetail = () => {
   const { slug } = useParams();
   const [work, setWork] = useState<Work | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!slug) {
+      setErrorMessage("We couldn't find the requested case study.");
+      setLoading(false);
+      return;
+    }
+
+    const fallback = staticWorks.find((item) => item.slug === slug);
+
+    if (!supabase) {
+      console.warn("Supabase client is not configured. Using static work content.");
+      if (fallback) {
+        setWork(fallback);
+      } else {
+        setErrorMessage("We couldn't find the requested case study.");
+      }
+      setLoading(false);
+      return;
+    }
+
     const fetchWork = async () => {
       const { data, error } = await supabase
         .from("works")
@@ -30,10 +42,19 @@ const WorkDetail = () => {
         .eq("slug", slug)
         .maybeSingle();
 
-      if (error) {
-        console.error("Error fetching work:", error);
+      if (error || !data) {
+        if (error) {
+          console.error("Error fetching work:", error);
+        }
+
+        if (fallback) {
+          console.warn("Falling back to static work content due to Supabase issue.");
+          setWork(fallback);
+        } else {
+          setErrorMessage("We couldn't load this case study right now.");
+        }
       } else {
-        setWork(data);
+        setWork(data as Work);
       }
       setLoading(false);
     };
@@ -51,6 +72,28 @@ const WorkDetail = () => {
               <div className="h-8 bg-secondary rounded w-3/4"></div>
               <div className="h-4 bg-secondary rounded w-1/2"></div>
             </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="min-h-screen">
+        <Navigation />
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-6 lg:px-12 text-center space-y-4">
+            <h1 className="text-4xl font-black">Case study unavailable</h1>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              {errorMessage}
+            </p>
+            <Link to="/works">
+              <Button variant="outline" className="rounded-full">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Works
+              </Button>
+            </Link>
           </div>
         </main>
       </div>

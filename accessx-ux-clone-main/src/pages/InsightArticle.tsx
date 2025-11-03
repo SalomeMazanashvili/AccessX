@@ -5,23 +5,36 @@ import Footer from "@/components/Footer";
 import { supabase } from "@/integrations/supabase/client";
 import { Calendar, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { staticInsights, type StaticInsight } from "@/data/staticContent";
 
-interface Insight {
-  id: string;
-  title: string;
-  featured_image: string | null;
-  description: string;
-  body: string;
-  author_name: string;
-  published_date: string;
-}
+type Insight = StaticInsight;
 
 const InsightArticle = () => {
   const { slug } = useParams();
   const [insight, setInsight] = useState<Insight | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!slug) {
+      setErrorMessage("We couldn't find the requested article.");
+      setLoading(false);
+      return;
+    }
+
+    const fallback = staticInsights.find((item) => item.slug === slug);
+
+    if (!supabase) {
+      console.warn("Supabase client is not configured. Using static insight content.");
+      if (fallback) {
+        setInsight(fallback);
+      } else {
+        setErrorMessage("We couldn't find the requested article.");
+      }
+      setLoading(false);
+      return;
+    }
+
     const fetchInsight = async () => {
       const { data, error } = await supabase
         .from("insights")
@@ -29,10 +42,19 @@ const InsightArticle = () => {
         .eq("slug", slug)
         .maybeSingle();
 
-      if (error) {
-        console.error("Error fetching insight:", error);
+      if (error || !data) {
+        if (error) {
+          console.error("Error fetching insight:", error);
+        }
+
+        if (fallback) {
+          console.warn("Falling back to static insight content due to Supabase issue.");
+          setInsight(fallback);
+        } else {
+          setErrorMessage("We couldn't load this article right now.");
+        }
       } else {
-        setInsight(data);
+        setInsight(data as Insight);
       }
       setLoading(false);
     };
@@ -50,6 +72,28 @@ const InsightArticle = () => {
               <div className="h-8 bg-secondary rounded w-3/4"></div>
               <div className="h-4 bg-secondary rounded w-1/2"></div>
             </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <div className="min-h-screen">
+        <Navigation />
+        <main className="pt-32 pb-20">
+          <div className="container mx-auto px-6 lg:px-12 text-center space-y-4">
+            <h1 className="text-4xl font-black">Article unavailable</h1>
+            <p className="text-muted-foreground max-w-2xl mx-auto">
+              {errorMessage}
+            </p>
+            <Link to="/insights">
+              <Button variant="outline" className="rounded-full">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Insights
+              </Button>
+            </Link>
           </div>
         </main>
       </div>
